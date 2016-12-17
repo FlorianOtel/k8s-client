@@ -21,13 +21,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/golang/glog"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/clientcmd"
+	k8sapiv1 "k8s.io/client-go/pkg/api/v1"
+
+	// k8sfields "k8s.io/client-go/pkg/fields"
+	// k8slabels "k8s.io/client-go/pkg/labels"
+
+	k8sclientcmd "k8s.io/client-go/tools/clientcmd"
 )
 
 const errorLogLevel = 2
@@ -49,7 +52,7 @@ func main() {
 	glog.Infof("The given kubeconfig is: %s ", *kubeconfig)
 
 	// uses the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, err := k8sclientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		glog.Errorf("Error parsing kubeconfig. Error: %s", err)
 	}
@@ -59,28 +62,57 @@ func main() {
 		glog.Errorf("Error creating Kubernetes client. Error: %s", err)
 	}
 
-	for {
-		pods, err := clientset.Core().Pods("").List(v1.ListOptions{})
+	////////
+	//////// Get Namespace list
+	////////
 
-		fmt.Printf(" -----> There are %d pods in the cluster\n", len(pods.Items))
+	nses, err := clientset.Namespaces().List(k8sapiv1.ListOptions{})
 
-		for nr, pod := range (*pods).Items {
-			spec := pod.Spec
-			meta := pod.ObjectMeta
+	//// Alternative, with selectors
+	// ns, err := clientset.Namespaces().List(k8sapiv1.ListOptions{LabelSelector: labels.Everything(), FieldSelector: fields.Everything()})
 
-			// JSON pretty-print the ObjectMeta
-			jsonpodmeta, _ := json.MarshalIndent(meta, "", " ")
-
-			// JSON pretty-print the PodSpec
-			jsonpodspec, _ := json.MarshalIndent(spec, "", " ")
-
-			fmt.Printf("====> Pod nr %d <====\n ######## Pod's ObjectMetadata ########\n%s\n ######## Pod's Spec ########\n%s\n\n ", nr, string(jsonpodmeta), string(jsonpodspec))
-		}
-
-		if err != nil {
-			glog.Errorf("Error listing pods. Error: %s", err)
-		}
-
-		time.Sleep(3 * time.Second)
+	if err != nil {
+		glog.Errorf("Error listing namespaces. Error: %s", err)
 	}
+
+	fmt.Printf(" -----> There are %d namespaces in the cluster\n", len(nses.Items))
+
+	for nr, ns := range (*nses).Items {
+		spec := ns.Spec
+		meta := ns.ObjectMeta
+
+		// JSON pretty-print the ObjectMeta
+		jsonnsmeta, _ := json.MarshalIndent(meta, "", " ")
+
+		// JSON pretty-print the PodSpec
+		jsonnsspec, _ := json.MarshalIndent(spec, "", " ")
+
+		fmt.Printf("====> Namespaces nr %d <====\n ######## Namespace's ObjectMetadata ########\n%s\n ######## Namespaces's Spec ########\n%s\n\n ", nr, string(jsonnsmeta), string(jsonnsspec))
+	}
+
+	////////
+	//////// Get Pod list
+	////////
+
+	pods, err := clientset.Core().Pods("").List(k8sapiv1.ListOptions{})
+
+	if err != nil {
+		glog.Errorf("Error listing pods. Error: %s", err)
+	}
+
+	fmt.Printf(" -----> There are %d pods in the cluster\n", len(pods.Items))
+
+	for nr, pod := range (*pods).Items {
+		spec := pod.Spec
+		meta := pod.ObjectMeta
+
+		// JSON pretty-print the ObjectMeta
+		jsonpodmeta, _ := json.MarshalIndent(meta, "", " ")
+
+		// JSON pretty-print the PodSpec
+		jsonpodspec, _ := json.MarshalIndent(spec, "", " ")
+
+		fmt.Printf("====> Pod nr %d <====\n ######## Pod's ObjectMetadata ########\n%s\n ######## Pod's Spec ########\n%s\n\n ", nr, string(jsonpodmeta), string(jsonpodspec))
+	}
+
 }
