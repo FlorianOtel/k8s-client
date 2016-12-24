@@ -24,19 +24,24 @@ import (
 
 	"github.com/golang/glog"
 
-	"k8s.io/client-go/kubernetes"
-	k8sapiv1 "k8s.io/client-go/pkg/api/v1"
+	// k8sclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"github.com/FlorianOtel/client-go/kubernetes"
 
-	// k8sfields "k8s.io/client-go/pkg/fields"
-	// k8slabels "k8s.io/client-go/pkg/labels"
+	// "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	"github.com/FlorianOtel/client-go/tools/clientcmd"
 
-	k8sclientcmd "k8s.io/client-go/tools/clientcmd"
+	// apiv1 "k8s.io/kubernetes/pkg/api/v1"
+	apiv1 "github.com/FlorianOtel/client-go/pkg/api/v1"
+	// "k8s.io/kubernetes/pkg/apis/extensions"
+	// k8sfields "k8s.io/kubernetes/pkg/fields"
+	// k8slabels "k8s.io/kubernetes/pkg/labels"
 )
 
 const errorLogLevel = 2
 
 var (
-	kubeconfig = flag.String("kubeconfig", "./kubeconfig", "absolute path to the kubeconfig file")
+	kubeconfig     = flag.String("kubeconfig", "./kubeconfig", "absolute path to the kubeconfig file")
+	UseNetPolicies = false
 )
 
 func main() {
@@ -52,7 +57,7 @@ func main() {
 	glog.Infof("The given kubeconfig is: %s ", *kubeconfig)
 
 	// uses the current context in kubeconfig
-	config, err := k8sclientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		glog.Errorf("Error parsing kubeconfig. Error: %s", err)
 	}
@@ -63,13 +68,61 @@ func main() {
 	}
 
 	////////
-	//////// Get Namespace list
+	//////// Discover K8S API -- version, extensions
 	////////
 
-	nses, err := clientset.Namespaces().List(k8sapiv1.ListOptions{})
+	sver, err := clientset.ServerVersion()
+
+	glog.Infof("Kubernetes server details: %#v", *sver)
+
+	//
+	sres, err := clientset.ServerResources()
+
+	for _, res := range sres {
+		for _, apires := range res.APIResources {
+			switch apires.Name {
+			case "networkpolicies":
+				glog.Infof(" ====> Found Kubernetes API server support for %#v. Available under / GroupVersion is: %#v . APIResource details: %#v", apires.Name, res.GroupVersion, apires)
+				UseNetPolicies = true
+			default:
+				// glog.Infof("Kubernetes API Server discovery: API Server Resource:\n%#v\n", apires)
+			}
+		}
+	}
+
+	////////
+	//////// Get initial list of Network Policies (if available)
+	////////
+
+	if UseNetPolicies {
+		netpolicies, err := clientset.Extensions().NetworkPolicies("default").List(apiv1.ListOptions{})
+		if err != nil {
+			glog.Errorf("Error getting network policies for namespace: %s. Error: %s", "default", err)
+		}
+
+		for nr, netpolicy := range netpolicies.Items {
+			spec := netpolicy.Spec
+			meta := netpolicy.ObjectMeta
+
+			// JSON pretty-print the ObjectMeta
+			jsonnsmeta, _ := json.MarshalIndent(meta, "", " ")
+
+			// JSON pretty-print the PodSpec
+			jsonnsspec, _ := json.MarshalIndent(spec, "", " ")
+
+			fmt.Printf("====> Network policy nr %d <====\n ######## Network Policy ObjectMetadata ########\n%s\n ######## Network Policy Spec ########\n%s\n\n ", nr, string(jsonnsmeta), string(jsonnsspec))
+		}
+
+	}
+
+	////////
+	//////// Get initial list of Namespaces
+	////////
+
+	nses, err := clientset.Namespaces().List(apiv1.ListOptions{})
 
 	//// Alternative, with selectors
-	// ns, err := clientset.Namespaces().List(k8sapiv1.ListOptions{LabelSelector: labels.Everything(), FieldSelector: fields.Everything()})
+	// ns, err := clientset.Namespaces().List(apiv1.ListOptions{LabelSelector: labels.Everything(), FieldSelector: fields.Everything()})
 
 	if err != nil {
 		glog.Errorf("Error listing namespaces. Error: %s", err)
@@ -94,7 +147,7 @@ func main() {
 	//////// Get Pod list
 	////////
 
-	pods, err := clientset.Core().Pods("").List(k8sapiv1.ListOptions{})
+	pods, err := clientset.Core().Pods("").List(apiv1.ListOptions{})
 
 	if err != nil {
 		glog.Errorf("Error listing pods. Error: %s", err)
