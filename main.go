@@ -17,21 +17,22 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+
+	"github.com/FlorianOtel/k8s-client/handler"
 
 	"github.com/golang/glog"
 
 	"github.com/FlorianOtel/client-go/kubernetes"
-	"github.com/FlorianOtel/client-go/pkg/runtime"
+	"github.com/FlorianOtel/client-go/pkg/util/wait"
 
 	"github.com/FlorianOtel/client-go/tools/clientcmd"
 
 	// apiv1 "k8s.io/kubernetes/pkg/api/v1"
 	apiv1 "github.com/FlorianOtel/client-go/pkg/api/v1"
-	apiv1beta1 "github.com/FlorianOtel/client-go/pkg/apis/extensions/v1beta1"
 	// "k8s.io/kubernetes/pkg/apis/extensions"
 	// k8sfields "k8s.io/kubernetes/pkg/fields"
 	// k8slabels "k8s.io/kubernetes/pkg/labels"
@@ -43,46 +44,6 @@ var (
 	kubeconfig     = flag.String("kubeconfig", "./kubeconfig", "absolute path to the kubeconfig file")
 	UseNetPolicies = false
 )
-
-// Pretty Prints (JSON) for a Kubernetes API object:
-// - The "ObjectMeta"  is common to all the API objects and is handled identically, disregarding of the underlying type
-// - The "Spec" is specific to each reasource and is handled on per-object specific basis (even if the field -- "Spec" -- is named the same for all objects)
-
-func JsonPrettyPrint(resource string, obj runtime.Object) error {
-	var meta apiv1.ObjectMeta
-	var jsonmeta, jsonspec []byte
-	var err error
-
-	switch resource {
-	case "pod":
-		meta = obj.(*apiv1.Pod).ObjectMeta
-		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Pod).Spec, "", " ")
-	case "namespace":
-		meta = obj.(*apiv1.Namespace).ObjectMeta
-		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Namespace).Spec, "", " ")
-	case "networkpolicy":
-		meta = obj.(*apiv1beta1.NetworkPolicy).ObjectMeta
-		jsonspec, err = json.MarshalIndent(obj.(*apiv1beta1.NetworkPolicy).Spec, "", " ")
-	default:
-		glog.Errorf("Don't know how to pretty-print resource: %s", resource)
-	}
-
-	// If any of the JSON marshalling of the object-specific specs above returned an error
-	if err != nil {
-		return err
-	}
-
-	// JSON pretty-print the ObjectMeta -- unlike "Spect" it's the same for all type of objects (has it's own type)
-	jsonmeta, err = json.MarshalIndent(meta, "", " ")
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("====> %s <====\n ######## %s ObjectMetadata ########\n%s\n ######## %s Spec ########\n%s\n\n ", resource, resource, string(jsonmeta), resource, string(jsonspec))
-
-	return err
-}
 
 func main() {
 
@@ -141,7 +102,7 @@ func main() {
 		}
 
 		for _, netpolicy := range netpolicies.Items {
-			JsonPrettyPrint("networkpolicy", &netpolicy)
+			handler.JsonPrettyPrint("networkpolicy", &netpolicy)
 		}
 	}
 
@@ -158,10 +119,10 @@ func main() {
 		glog.Errorf("Error listing namespaces. Error: %s", err)
 	}
 
-	fmt.Printf(" -----> There are %d namespaces in the cluster\n", len(nses.Items))
+	fmt.Printf("-----> There are %d namespaces in the cluster\n", len(nses.Items))
 
 	for _, ns := range (*nses).Items {
-		JsonPrettyPrint("namespace", &ns)
+		handler.JsonPrettyPrint("namespace", &ns)
 	}
 
 	////////
@@ -174,10 +135,24 @@ func main() {
 		glog.Errorf("Error listing pods. Error: %s", err)
 	}
 
-	fmt.Printf(" -----> There are %d pods in the cluster\n", len(pods.Items))
+	fmt.Printf("-----> There are %d pods in the cluster\n", len(pods.Items))
 
 	for _, pod := range (*pods).Items {
-		JsonPrettyPrint("pod", &pod)
+		handler.JsonPrettyPrint("pod", &pod)
 	}
+
+	////////
+	//////// Watch pods
+	////////
+
+	//Create a cache to store Pods
+	// var store cache.Store
+	// store, pController := handler.CreatePodController(clientset, "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
+
+	_, pController := handler.CreatePodController(clientset, "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
+	go pController.Run(wait.NeverStop)
+
+	//Keep alive
+	glog.Error(http.ListenAndServe(":8099", nil))
 
 }
