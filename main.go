@@ -24,14 +24,14 @@ import (
 
 	"github.com/golang/glog"
 
-	// k8sclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"github.com/FlorianOtel/client-go/kubernetes"
+	"github.com/FlorianOtel/client-go/pkg/runtime"
 
-	// "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	"github.com/FlorianOtel/client-go/tools/clientcmd"
 
 	// apiv1 "k8s.io/kubernetes/pkg/api/v1"
 	apiv1 "github.com/FlorianOtel/client-go/pkg/api/v1"
+	apiv1beta1 "github.com/FlorianOtel/client-go/pkg/apis/extensions/v1beta1"
 	// "k8s.io/kubernetes/pkg/apis/extensions"
 	// k8sfields "k8s.io/kubernetes/pkg/fields"
 	// k8slabels "k8s.io/kubernetes/pkg/labels"
@@ -43,6 +43,46 @@ var (
 	kubeconfig     = flag.String("kubeconfig", "./kubeconfig", "absolute path to the kubeconfig file")
 	UseNetPolicies = false
 )
+
+// Pretty Prints (JSON) for a Kubernetes API object:
+// - The "ObjectMeta"  is common to all the API objects and is handled identically, disregarding of the underlying type
+// - The "Spec" is specific to each reasource and is handled on per-object specific basis (even if the field -- "Spec" -- is named the same for all objects)
+
+func JsonPrettyPrint(resource string, obj runtime.Object) error {
+	var meta apiv1.ObjectMeta
+	var jsonmeta, jsonspec []byte
+	var err error
+
+	switch resource {
+	case "pod":
+		meta = obj.(*apiv1.Pod).ObjectMeta
+		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Pod).Spec, "", " ")
+	case "namespace":
+		meta = obj.(*apiv1.Namespace).ObjectMeta
+		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Namespace).Spec, "", " ")
+	case "networkpolicy":
+		meta = obj.(*apiv1beta1.NetworkPolicy).ObjectMeta
+		jsonspec, err = json.MarshalIndent(obj.(*apiv1beta1.NetworkPolicy).Spec, "", " ")
+	default:
+		glog.Errorf("Don't know how to pretty-print resource: %s", resource)
+	}
+
+	// If any of the JSON marshalling of the object-specific specs above returned an error
+	if err != nil {
+		return err
+	}
+
+	// JSON pretty-print the ObjectMeta -- unlike "Spect" it's the same for all type of objects (has it's own type)
+	jsonmeta, err = json.MarshalIndent(meta, "", " ")
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("====> %s <====\n ######## %s ObjectMetadata ########\n%s\n ######## %s Spec ########\n%s\n\n ", resource, resource, string(jsonmeta), resource, string(jsonspec))
+
+	return err
+}
 
 func main() {
 
@@ -100,19 +140,9 @@ func main() {
 			glog.Errorf("Error getting network policies for namespace: %s. Error: %s", "default", err)
 		}
 
-		for nr, netpolicy := range netpolicies.Items {
-			spec := netpolicy.Spec
-			meta := netpolicy.ObjectMeta
-
-			// JSON pretty-print the ObjectMeta
-			jsonnsmeta, _ := json.MarshalIndent(meta, "", " ")
-
-			// JSON pretty-print the PodSpec
-			jsonnsspec, _ := json.MarshalIndent(spec, "", " ")
-
-			fmt.Printf("====> Network policy nr %d <====\n ######## Network Policy ObjectMetadata ########\n%s\n ######## Network Policy Spec ########\n%s\n\n ", nr, string(jsonnsmeta), string(jsonnsspec))
+		for _, netpolicy := range netpolicies.Items {
+			JsonPrettyPrint("networkpolicy", &netpolicy)
 		}
-
 	}
 
 	////////
@@ -130,17 +160,8 @@ func main() {
 
 	fmt.Printf(" -----> There are %d namespaces in the cluster\n", len(nses.Items))
 
-	for nr, ns := range (*nses).Items {
-		spec := ns.Spec
-		meta := ns.ObjectMeta
-
-		// JSON pretty-print the ObjectMeta
-		jsonnsmeta, _ := json.MarshalIndent(meta, "", " ")
-
-		// JSON pretty-print the PodSpec
-		jsonnsspec, _ := json.MarshalIndent(spec, "", " ")
-
-		fmt.Printf("====> Namespaces nr %d <====\n ######## Namespace's ObjectMetadata ########\n%s\n ######## Namespaces's Spec ########\n%s\n\n ", nr, string(jsonnsmeta), string(jsonnsspec))
+	for _, ns := range (*nses).Items {
+		JsonPrettyPrint("namespace", &ns)
 	}
 
 	////////
@@ -155,17 +176,8 @@ func main() {
 
 	fmt.Printf(" -----> There are %d pods in the cluster\n", len(pods.Items))
 
-	for nr, pod := range (*pods).Items {
-		spec := pod.Spec
-		meta := pod.ObjectMeta
-
-		// JSON pretty-print the ObjectMeta
-		jsonpodmeta, _ := json.MarshalIndent(meta, "", " ")
-
-		// JSON pretty-print the PodSpec
-		jsonpodspec, _ := json.MarshalIndent(spec, "", " ")
-
-		fmt.Printf("====> Pod nr %d <====\n ######## Pod's ObjectMetadata ########\n%s\n ######## Pod's Spec ########\n%s\n\n ", nr, string(jsonpodmeta), string(jsonpodspec))
+	for _, pod := range (*pods).Items {
+		JsonPrettyPrint("pod", &pod)
 	}
 
 }
