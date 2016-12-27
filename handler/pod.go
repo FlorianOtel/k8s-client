@@ -1,10 +1,3 @@
-/*
-
-Attribution for this code: Our dearest friends at Aporeto -- see https://www.aporeto.com/trireme/.
-Original code: https://github.com/aporeto-inc/trireme-kubernetes/blob/master/kubernetes/handler.go
-
-*/
-
 package handler
 
 import (

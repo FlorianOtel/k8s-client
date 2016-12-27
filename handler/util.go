@@ -1,10 +1,3 @@
-/*
-
-Attribution for this code: Our dearest friends at Aporeto -- see https://www.aporeto.com/trireme/.
-Original code: https://github.com/aporeto-inc/trireme-kubernetes/blob/master/kubernetes/handler.go
-
-*/
-
 package handler
 
 import (
@@ -33,6 +26,9 @@ func JsonPrettyPrint(resource string, obj runtime.Object) error {
 	case "pod":
 		meta = obj.(*apiv1.Pod).ObjectMeta
 		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Pod).Spec, "", " ")
+	case "service":
+		meta = obj.(*apiv1.Service).ObjectMeta
+		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Service).Spec, "", " ")
 	case "namespace":
 		meta = obj.(*apiv1.Namespace).ObjectMeta
 		jsonspec, err = json.MarshalIndent(obj.(*apiv1.Namespace).Spec, "", " ")

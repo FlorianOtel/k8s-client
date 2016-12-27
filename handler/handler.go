@@ -37,7 +37,7 @@ func CreateResourceController(client cache.Getter, resource string, namespace st
 	return store, controller
 }
 
-// CreatePodController creates a controller specifically for Pods.
+// CreatePodsController creates a controller specifically for Pods.
 // XXX - If a hostname is specified, then we limit the controller to that particular node. It's the caller responsibility to validate the node name (no checks performed here)
 func CreatePodController(c *kubernetes.Clientset, hostname string, namespace string,
 	addFunc func(addedObj *apiv1.Pod) error, deleteFunc func(deletedObj *apiv1.Pod) error, updateFunc func(oldObj, updatedObj *apiv1.Pod) error) (cache.Store, *cache.Controller) {
@@ -91,8 +91,8 @@ func CreateServiceController(c *kubernetes.Clientset, namespace string,
 		})
 }
 
-// CreateNetworkPoliciesController creates a controller specifically for NetworkPolicies.
-func CreateNetworkPoliciesController(c *kubernetes.Clientset, namespace string,
+// CreateNetworkPolicysController creates a controller specifically for NetworkPolicies.
+func CreateNetworkPolicyController(c *kubernetes.Clientset, namespace string,
 	addFunc func(addedObj *apiv1beta1.NetworkPolicy) error, deleteFunc func(deletedObj *apiv1beta1.NetworkPolicy) error, updateFunc func(oldObj, updatedObj *apiv1beta1.NetworkPolicy) error) (cache.Store, *cache.Controller) {
 	return CreateResourceController(c.Extensions().RESTClient(), "networkpolicies", namespace, &apiv1beta1.NetworkPolicy{}, fields.Everything(),
 		func(addedObj interface{}) {

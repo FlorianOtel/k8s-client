@@ -69,7 +69,7 @@ func main() {
 	}
 
 	////////
-	//////// Discover K8S API -- version, extensions
+	//////// Discover K8S API -- version, extensions: Check if server supports Network Policy API extension (currently / Dec 2016: apiv1beta1)
 	////////
 
 	sver, err := clientset.ServerVersion()
@@ -142,7 +142,23 @@ func main() {
 	}
 
 	////////
-	//////// Watch pods
+	//////// Get Service list
+	////////
+
+	svcs, err := clientset.Core().Services("").List(apiv1.ListOptions{})
+
+	if err != nil {
+		glog.Errorf("Error listing services. Error: %s", err)
+	}
+
+	fmt.Printf("-----> There are %d services in the cluster\n", len(svcs.Items))
+
+	for _, svc := range (*svcs).Items {
+		handler.JsonPrettyPrint("service", &svc)
+	}
+
+	////////
+	//////// Watch Pods
 	////////
 
 	//Create a cache to store Pods
@@ -151,6 +167,27 @@ func main() {
 
 	_, pController := handler.CreatePodController(clientset, "k8s-20161122-node2", "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
 	go pController.Run(wait.NeverStop)
+
+	////////
+	//////// Watch Services
+	////////
+
+	_, sController := handler.CreateServiceController(clientset, "default", handler.ServiceCreated, handler.ServiceDeleted, handler.ServiceUpdated)
+	go sController.Run(wait.NeverStop)
+
+	////////
+	//////// Watch Namespaces
+	////////
+
+	_, nsController := handler.CreateNamespaceController(clientset, handler.NamespaceCreated, handler.NamespaceDeleted, handler.NamespaceUpdated)
+	go nsController.Run(wait.NeverStop)
+
+	////////
+	//////// Watch NetworkPolicies
+	////////
+
+	_, npController := handler.CreateNetworkPolicyController(clientset, "default", handler.NetworkPolicyCreated, handler.NetworkPolicyDeleted, handler.NetworkPolicyUpdated)
+	go npController.Run(wait.NeverStop)
 
 	//Keep alive
 	glog.Error(http.ListenAndServe(":8099", nil))
