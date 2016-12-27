@@ -8,6 +8,8 @@ Original code: https://github.com/aporeto-inc/trireme-kubernetes/blob/master/kub
 package handler
 
 import (
+	"time"
+
 	"github.com/golang/glog"
 	//
 	"github.com/FlorianOtel/client-go/kubernetes"
@@ -31,15 +33,26 @@ func CreateResourceController(client cache.Getter, resource string, namespace st
 	}
 
 	listWatch := cache.NewListWatchFromClient(client, resource, namespace, selector)
-	store, controller := cache.NewInformer(listWatch, obj, 0, handlers)
+	store, controller := cache.NewInformer(listWatch, obj, time.Millisecond*0, handlers)
 	return store, controller
 }
 
 // CreatePodController creates a controller specifically for Pods.
-func CreatePodController(c *kubernetes.Clientset, namespace string,
+// XXX - If a hostname is specified, then we limit the controller to that particular node. It's the caller responsibility to validate the node name (no checks performed here)
+func CreatePodController(c *kubernetes.Clientset, hostname string, namespace string,
 	addFunc func(addedObj *apiv1.Pod) error, deleteFunc func(deletedObj *apiv1.Pod) error, updateFunc func(oldObj, updatedObj *apiv1.Pod) error) (cache.Store, *cache.Controller) {
 
-	return CreateResourceController(c.Core().RESTClient(), "pods", namespace, &apiv1.Pod{}, fields.Everything(),
+	var filter fields.Selector
+
+	if hostname == "" {
+		filter = fields.Everything()
+	} else {
+		filter = fields.Set(map[string]string{
+			"spec.nodeName": hostname,
+		}).AsSelector()
+	}
+
+	return CreateResourceController(c.Core().RESTClient(), "pods", namespace, &apiv1.Pod{}, filter,
 		func(addedObj interface{}) {
 			if err := addFunc(addedObj.(*apiv1.Pod)); err != nil {
 				glog.Infof("Error while handling Add Pod: %s ", err)
