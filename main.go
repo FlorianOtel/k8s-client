@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -30,9 +29,7 @@ import (
 	"github.com/FlorianOtel/client-go/pkg/util/wait"
 
 	"github.com/FlorianOtel/client-go/tools/clientcmd"
-
 	// apiv1 "k8s.io/kubernetes/pkg/api/v1"
-	apiv1 "github.com/FlorianOtel/client-go/pkg/api/v1"
 	// "k8s.io/kubernetes/pkg/apis/extensions"
 	// k8sfields "k8s.io/kubernetes/pkg/fields"
 	// k8slabels "k8s.io/kubernetes/pkg/labels"
@@ -92,72 +89,6 @@ func main() {
 	}
 
 	////////
-	//////// Get initial list of Network Policies (if available)
-	////////
-
-	if UseNetPolicies {
-		netpolicies, err := clientset.Extensions().NetworkPolicies("default").List(apiv1.ListOptions{})
-		if err != nil {
-			glog.Errorf("Error getting network policies for namespace: %s. Error: %s", "default", err)
-		}
-
-		for _, netpolicy := range netpolicies.Items {
-			handler.JsonPrettyPrint("networkpolicy", &netpolicy)
-		}
-	}
-
-	////////
-	//////// Get initial list of Namespaces
-	////////
-
-	nses, err := clientset.Namespaces().List(apiv1.ListOptions{})
-
-	//// Alternative, with selectors
-	// ns, err := clientset.Namespaces().List(apiv1.ListOptions{LabelSelector: labels.Everything(), FieldSelector: fields.Everything()})
-
-	if err != nil {
-		glog.Errorf("Error listing namespaces. Error: %s", err)
-	}
-
-	fmt.Printf("-----> There are %d namespaces in the cluster\n", len(nses.Items))
-
-	for _, ns := range (*nses).Items {
-		handler.JsonPrettyPrint("namespace", &ns)
-	}
-
-	////////
-	//////// Get Pod list
-	////////
-
-	pods, err := clientset.Core().Pods("").List(apiv1.ListOptions{})
-
-	if err != nil {
-		glog.Errorf("Error listing pods. Error: %s", err)
-	}
-
-	fmt.Printf("-----> There are %d pods in the cluster\n", len(pods.Items))
-
-	for _, pod := range (*pods).Items {
-		handler.JsonPrettyPrint("pod", &pod)
-	}
-
-	////////
-	//////// Get Service list
-	////////
-
-	svcs, err := clientset.Core().Services("").List(apiv1.ListOptions{})
-
-	if err != nil {
-		glog.Errorf("Error listing services. Error: %s", err)
-	}
-
-	fmt.Printf("-----> There are %d services in the cluster\n", len(svcs.Items))
-
-	for _, svc := range (*svcs).Items {
-		handler.JsonPrettyPrint("service", &svc)
-	}
-
-	////////
 	//////// Watch Pods
 	////////
 
@@ -183,12 +114,15 @@ func main() {
 	go nsController.Run(wait.NeverStop)
 
 	////////
-	//////// Watch NetworkPolicies
+	//////// Watch NetworkPolicies (if supported)
 	////////
 
-	_, npController := handler.CreateNetworkPolicyController(clientset, "default", handler.NetworkPolicyCreated, handler.NetworkPolicyDeleted, handler.NetworkPolicyUpdated)
-	go npController.Run(wait.NeverStop)
+	if UseNetPolicies {
 
+		_, npController := handler.CreateNetworkPolicyController(clientset, "default", handler.NetworkPolicyCreated, handler.NetworkPolicyDeleted, handler.NetworkPolicyUpdated)
+		go npController.Run(wait.NeverStop)
+
+	}
 	//Keep alive
 	glog.Error(http.ListenAndServe(":8099", nil))
 
