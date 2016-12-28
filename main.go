@@ -96,7 +96,7 @@ func main() {
 	// var store cache.Store
 	// store, pController := handler.CreatePodController(clientset, "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
 
-	_, pController := handler.CreatePodController(clientset, "k8s-20161122-node2", "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
+	_, pController := handler.CreatePodController(clientset, "", "default", handler.PodCreated, handler.PodDeleted, handler.PodUpdated)
 	go pController.Run(wait.NeverStop)
 
 	////////
